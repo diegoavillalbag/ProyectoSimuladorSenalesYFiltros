@@ -42,12 +42,15 @@
                                           <TextField fx:id="SignalFreq" />
                                           <Label text="Amplitud" />
                                           <TextField fx:id="SignalAmp" />
-                                          <Button fx:id="SignalApply" mnemonicParsing="false" onAction="#SignalApplyOnAction" text="Aplicar ">
+                                          <Button fx:id="SignalApply" mnemonicParsing="false" onAction="#SignalApplyOnAction" prefWidth="200.0" text="Aplicar ">
                                              <VBox.margin>
-                                                <Insets top="5.0" />
+                                                <Insets top="10.0" />
                                              </VBox.margin>
                                           </Button>
-                                          <Button fx:id="SignalDelete" mnemonicParsing="false" onAction="#SignalDeleteOnAction" text="Borrar Entrada" />
+                                          <Button fx:id="SignalDelete" mnemonicParsing="false" onAction="#SignalDeleteOnAction" prefWidth="200.0" text="Borrar Entrada">
+                                             <VBox.margin>
+                                                <Insets top="10.0" />
+                                             </VBox.margin></Button>
                                        </children>
                                        <padding>
                                           <Insets left="5.0" right="5.0" top="10.0" />
@@ -58,15 +61,66 @@
                                     </VBox>
                                  </content>
                             </TitledPane>
-                            <TitledPane animated="false" text="Ruido">
-                              <content>
-                                <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
-                              </content>
+                            <TitledPane animated="false" text="Ruido de Entrada">
+                                 <content>
+                                    <VBox alignment="TOP_CENTER" prefHeight="200.0" prefWidth="100.0" spacing="5.0">
+                                       <padding>
+                                          <Insets left="5.0" right="5.0" top="10.0" />
+                                       </padding>
+                                       <children>
+                                          <Label text="Tipo de Ruido" />
+                                          <ChoiceBox fx:id="NoiseSelector" prefWidth="200.0" />
+                                          <Label text="Frecuencia" />
+                                          <TextField fx:id="NoiseFreq" />
+                                          <Label text="Amplitud" />
+                                          <TextField fx:id="NoiseAmp" />
+                                          <Label text="Porcentaje (En decimales)" />
+                                          <TextField fx:id="NoisePrctg" />
+                                          <Button fx:id="NoiseSum" mnemonicParsing="false" onAction="#NoiseSumOnAction" prefWidth="200.0" text="Sumar Ruido">
+                                             <VBox.margin>
+                                                <Insets top="10.0" />
+                                             </VBox.margin>
+                                          </Button>
+                                          <Button fx:id="NoiseApply" mnemonicParsing="false" onAction="#NoiseApplyOnAction" prefWidth="200.0" text="Aplicar Ruido">
+                                             <VBox.margin>
+                                                <Insets top="10.0" />
+                                             </VBox.margin>
+                                          </Button>
+                                          <Button fx:id="NoiseDelete" mnemonicParsing="false" onAction="#NoiseDeleteOnAction" prefWidth="200.0" text="Eliminar Ruido">
+                                             <VBox.margin>
+                                                <Insets top="10.0" />
+                                             </VBox.margin>
+                                          </Button>
+                                       </children>
+                                    </VBox>
+                                 </content>
                             </TitledPane>
                             <TitledPane animated="false" text="Filtros">
-                              <content>
-                                <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
-                              </content>
+                                 <content>
+                                    <VBox alignment="TOP_CENTER" prefHeight="200.0" prefWidth="100.0" spacing="5.0">
+                                       <children>
+                                          <Label text="Tipo de Filtro" />
+                                          <ChoiceBox fx:id="FilterSelector" prefWidth="200.0" />
+                                          <Label text="Frecuencia de Corte / Central" />
+                                          <TextField fx:id="FilterFc" />
+                                          <Label text="Q (Para paso Banda)" />
+                                          <TextField fx:id="FilterQ" />
+                                          <Button fx:id="FilterApply" mnemonicParsing="false" onAction="#FilterApplyOnAction" prefWidth="200.0" text="Aplicar Filtro">
+                                             <VBox.margin>
+                                                <Insets top="10.0" />
+                                             </VBox.margin>
+                                          </Button>
+                                          <Button fx:id="FilterDelete" mnemonicParsing="false" onAction="#FilterDeleteOnAction" prefWidth="200.0" text="Eliminar Filtro">
+                                             <VBox.margin>
+                                                <Insets top="10.0" />
+                                             </VBox.margin>
+                                          </Button>
+                                       </children>
+                                       <padding>
+                                          <Insets left="5.0" right="5.0" top="10.0" />
+                                       </padding>
+                                    </VBox>
+                                 </content>
                             </TitledPane>
                           </panes>
                         </Accordion>

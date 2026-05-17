@@ -26,7 +26,7 @@ public interface Filtro {
             t[i] = i * dt;
             impulso[i] = 0.0; 
         }
-        impulso[0] = (double) N / 2.0; // El golpe del impulso en t=0
+        impulso[0] = fs; // El golpe del impulso en t=0
 
         Signal senalImpulso = new Signal(t, impulso);
 
@@ -34,7 +34,7 @@ public interface Filtro {
         Signal h_n = this.aplicar(senalImpulso);
 
         // 3. La FFT de h[n] nos da directamente la Respuesta en Frecuencia H(w)
-        return h_n.calcularFFT();
+        return h_n.calcularFFTParaFiltro();
     }
 
 }

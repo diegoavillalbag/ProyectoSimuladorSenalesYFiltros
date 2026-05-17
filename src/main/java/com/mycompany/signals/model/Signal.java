@@ -110,6 +110,63 @@ public class Signal {
         // Reutilizamos el eje temporal de la señal actual
         return new Signal(this.t.clone(), nuevaFt); 
     }
+    /**
+     * Resta una señal a otra (útil para mezclar ondas).
+     * Ambas señales deben tener la misma longitud.
+     * @param otraSenal Señal de entrada
+     * @return Señal de salida
+     */
+    public Signal restar(Signal otraSenal) {
+        if (this.ft.length != otraSenal.ft.length) {
+            throw new IllegalArgumentException("Las señales deben tener el mismo tamaño para restarse.");
+        }
+        
+        int n = this.ft.length;
+        double[] nuevaFt = new double[n];
+        
+        for (int i = 0; i < n; i++) {
+            nuevaFt[i] = this.ft[i] - otraSenal.ft[i];
+        }
+        
+        // Reutilizamos el eje temporal de la señal actual
+        return new Signal(this.t.clone(), nuevaFt); 
+    }
+    
+    /**
+     * Multiplica la señal por un valor escalar (amplificación / atenuación).
+     * @param escalar Valor por el cual se multiplicará la amplitud en cada punto.
+     * @return Nueva señal escalada.
+     */
+    public Signal multiplicarPorEscalar(double escalar) {
+        int n = this.ft.length;
+        double[] nuevaFt = new double[n];
+        
+        for (int i = 0; i < n; i++) {
+            nuevaFt[i] = this.ft[i] * escalar;
+        }
+        
+        // Reutilizamos el eje temporal de la señal actual
+        return new Signal(this.t.clone(), nuevaFt, false); // Para poder usar en fft
+    }
+
+    /**
+     * Obtiene la amplitud máxima pico de la señal.
+     * En procesamiento de señales, la "amplitud" suele referirse a la mayor 
+     * desviación respecto al cero, por lo que se evalúa el valor absoluto.
+     * @return El valor máximo de amplitud detectado.
+     */
+    public double obtenerAmplitudMaxima() {
+        double maxAmplitud = 0.0;
+        
+        for (int i = 0; i < this.ft.length; i++) {
+            double valorAbsoluto = Math.abs(this.ft[i]);
+            if (valorAbsoluto > maxAmplitud) {
+                maxAmplitud = valorAbsoluto;
+            }
+        }
+        
+        return maxAmplitud;
+    }
     
     /**
      * Calcula la FFT optimizada para señales reales.
@@ -192,7 +249,7 @@ public class Signal {
         int numFrequencies = (n / 2) + 1;
         double[] hz = new double[numFrequencies];
         
-        // Asumimos un muestreo uniforme: dt = t[1] - t[0]
+        // El dt no cambia (muestreo uniforme)
         double dt = t[1] - t[0]; 
         double fs = 1.0 / dt; // Frecuencia de muestreo (Sample Rate)
 
@@ -203,10 +260,77 @@ public class Signal {
         return hz;
     }
     
+    // Metodo para usarlo en las señales
     public Signal calcularFFT(){
         return new Signal(this.calcularEjeFrecuencias(), this.calcularMagnitudesFFT(), false);
     }
+    
+    /**
+    * Calcula la FFT específica para los filtros
+    * Cambia el escalado para que sea coherente
+    */
+    public double[] calcularMagnitudesFFTParaFiltro(double dt) {
+        int n = ft.length;
+        int m = 31 - Integer.numberOfLeadingZeros(n);
 
+        double[] real = new double[n];
+        double[] imag = new double[n];
+
+        for (int i = 0; i < n; i++) {
+            int rev = Integer.reverse(i) >>> (32 - m);
+            real[rev] = ft[i];
+        }
+
+        // Algoritmo Cooley-Tukey Iterativo (Idéntico al anterior)
+        for (int s = 1; s <= m; s++) {
+            int m_s = 1 << s;
+            int half_m_s = m_s / 2;
+            double theta = -2.0 * Math.PI / m_s;
+            double w_m_r = Math.cos(theta);
+            double w_m_i = Math.sin(theta);
+
+            for (int k = 0; k < n; k += m_s) {
+                double w_r = 1.0;
+                double w_i = 0.0;
+                for (int j = 0; j < half_m_s; j++) {
+                    int u_idx = k + j;
+                    int t_idx = k + j + half_m_s;
+                    double t_r = w_r * real[t_idx] - w_i * imag[t_idx];
+                    double t_i = w_r * imag[t_idx] + w_i * real[t_idx];
+                    double u_r = real[u_idx];
+                    double u_i = imag[u_idx];
+                    real[t_idx] = u_r - t_r;
+                    imag[t_idx] = u_i - t_i;
+                    real[u_idx] = u_r + t_r;
+                    imag[u_idx] = u_i + t_i;
+                    double next_w_r = w_r * w_m_r - w_i * w_m_i;
+                    double next_w_i = w_r * w_m_i + w_i * w_m_r;
+                    w_r = next_w_r;
+                    w_i = next_w_i;
+                }
+            }
+        }
+
+        int numFrequencies = (n / 2) + 1;
+        double[] magnitudes = new double[numFrequencies];
+
+        for (int i = 0; i < numFrequencies; i++) {
+            double mag = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+            // Cambio respesco a la FFT de señales: 
+            // Multiplicación por dt para obtener la ganancia exacta H(w)
+            magnitudes[i] = mag * dt; 
+        }
+
+        return magnitudes;
+    }
+
+    // Metodo para aplicarlo
+    public Signal calcularFFTParaFiltro() {
+        double dt = t[1] - t[0]; 
+        return new Signal(this.calcularEjeFrecuencias(), this.calcularMagnitudesFFTParaFiltro(dt), false);
+    }
+
+    
     // --- Getters básicos ---
     public double[] getT() { return t; }
     public double[] getFt() { return ft; }

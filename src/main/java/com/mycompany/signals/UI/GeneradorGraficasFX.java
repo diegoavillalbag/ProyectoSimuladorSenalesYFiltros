@@ -13,22 +13,22 @@ public class GeneradorGraficasFX {
      * Método 1: Orientado a Objetos. Recibe directamente un objeto Signal.
      * Ideal para graficar señales en el dominio del tiempo.
      */
-    public static LineChart<Number, Number> crearGrafica(String titulo, String serie, Signal senal, int n) {
+    public LineChart<Number, Number> crearGrafica(String titulo, String serie, Signal senal, int n) {
         // Reutilizamos el Método 2, extrayendo los arreglos del objeto
-        return crearGrafica(titulo, serie, senal.getT(), senal.getFt(), n);
+        return this.crearGrafica(titulo, serie, senal.getT(), senal.getFt(), n);
     }
 
     /**
      * Método 2: Genérico. Recibe arreglos crudos.
      * Ideal para graficar resultados matemáticos sueltos, como la FFT (Hz vs Magnitud).
      */
-    public static LineChart<Number, Number> crearGrafica(String titulo, String serie, double[] x, double[] y, int n) {
+    public LineChart<Number, Number> crearGrafica(String titulo, String serie, double[] x, double[] y, int n) {
         // Definir los ejes
         NumberAxis xAxis = new NumberAxis();
         NumberAxis yAxis = new NumberAxis();
         
-        xAxis.setLabel("Amplitud");
-        yAxis.setLabel("Tiempo");
+        xAxis.setLabel("Tiempo");
+        yAxis.setLabel("Amplitud");
         
         // Crear el gráfico
         LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);

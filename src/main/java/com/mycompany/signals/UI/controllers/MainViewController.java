@@ -25,13 +25,17 @@ public class MainViewController implements Initializable {
 
     // --- Constantes del programa ---
     private final int N = 65536; // Cantidad de puntos de señales y FFT
-    private final int paso = 7; // Muestreo temporal: cada cuántos índices se grafica un punto (1 = todos)
+    private final int paso = 1; // Muestreo temporal: cada cuántos índices se grafica un punto (1 = todos)
     private final int pasoFft = 32; // FFT: tamaño de ventana de submuestreo (pico por bloque)
     private final int pasoRespuestaFiltro = 50; // Respuesta del filtro en gráfico FFT
-    private final int factorRecorte = 100; // Recorte temporal: se grafican los primeros N/factorRecorte puntos
-    private final int factorRecorteFFT = 4; // Recorte frecuencias
     private final int fs = 65536; // Frecuencia de muestreo (Hz)
+    private double tiempoInicio = 0;
+    private double tiempoFin = 0.01;
+    private double freqInicio = 0;
+    private double freqFin = 8000;
 
+    
+    
     // --- Estado de las señales ---
     private Signal senalEntrada;
     private Signal senalEntradaFFT;
@@ -54,7 +58,11 @@ public class MainViewController implements Initializable {
     
     // --- Menú señal de entrada ---
     @FXML private ChoiceBox<String> SignalSelector;
-    private final String[] opcionesTipoSenalEntrada = {"Senoidal", "Cuadrada"};
+    private final String[] opcionesTipoSenalEntrada = {"Señal Continua",
+                                                       "Señal Senoidal", 
+                                                       "Señal Cuadrada",
+                                                       "Señal Triangular", 
+                                                       "Señal Diente de Sierra"};
     @FXML private TextField SignalFreq;
     @FXML private TextField SignalAmp;
 
@@ -68,10 +76,21 @@ public class MainViewController implements Initializable {
 
     // --- Menú filtros ---
     @FXML private ChoiceBox<String> FilterSelector;
-    private final String[] opcionesTipoFiltro = {"Pasa Bajos 1er Orden", "Pasa Altos 1er Orden",
-            "Pasa Bajos 2do Orden", "Pasa Altos 2do Orden", "Pasa Banda 2do Orden"};
+    private final String[] opcionesTipoFiltro = {
+            "Pasa Bajos 1er Orden", "Pasa Altos 1er Orden",
+            "Pasa Bajos 2do Orden", "Pasa Altos 2do Orden", "Pasa Banda 2do Orden",
+            "Rechaza Banda 2do Orden",
+            "Filtro Bilateral",
+            "Filtro Mediana",
+            "Filtro Hampel (Mediana Mejorado)",
+            "Filtro Media Movil",
+            "Filtro Savitzky-Golay 5 Puntos", //"Filtro Savitzky-Golay 7 Puntos",
+            "Filtro Savitzky-Golay 11 Puntos", //"Filtro Savitzky-Golay 15 Puntos",
+            "Filtro Savitzky-Golay 21 Puntos"};
     @FXML private TextField FilterFc;
     @FXML private TextField FilterQ; // Solo habilitado para Pasa Banda 2do Orden
+    @FXML private TextField FilterPuntos; // Solo habilitado para Media y Mediana
+    @FXML private TextField FilterSigma; // Solo habilitado para Hampel
     
     
     @FXML
@@ -89,6 +108,8 @@ public class MainViewController implements Initializable {
         
         double filterFc = 1000;
         double filterQ = 10;
+        int filterPuntos = 3;
+        double filterSigma = 1.5; // Para filtro Hamel
         filtroActual = GeneradorFiltros.crearPasaBajos(filterFc, fs);
 
         inicializarGraficas();
@@ -110,6 +131,8 @@ public class MainViewController implements Initializable {
         FilterSelector.setValue(opcionesTipoFiltro[0]);
         FilterFc.setText(String.valueOf(filterFc));
         FilterQ.setText(String.valueOf(filterQ));
+        FilterPuntos.setText(String.valueOf(filterPuntos));
+        FilterSigma.setText(String.valueOf(filterSigma));
 
         // Listeners: habilitar campos según tipo de ruido o filtro
         // Ruido porcentual: solo porcentaje activo al inicio
@@ -136,11 +159,40 @@ public class MainViewController implements Initializable {
         });
         
         FilterQ.setDisable(true);
+        FilterPuntos.setDisable(true);
+        FilterSigma.setDisable(true);
         FilterSelector.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue != null && newValue.equals("Pasa Banda 2do Orden")) {
+            if (newValue != null && (newValue.equals("Pasa Banda 2do Orden") 
+                || newValue.equals("Rechaza Banda 2do Orden"))) {
+                FilterFc.setDisable(false);
                 FilterQ.setDisable(false);
-            } else {
+                FilterPuntos.setDisable(true);
+                FilterSigma.setDisable(true);
+            } else if(newValue != null && newValue.startsWith("Filtro Savitzky-Golay")){
+                FilterFc.setDisable(true);
                 FilterQ.setDisable(true);
+                FilterPuntos.setDisable(true);
+                FilterSigma.setDisable(true);
+            } else if(newValue != null && (newValue.startsWith("Filtro Mediana") ||
+                                           newValue.startsWith("Filtro Media Movil"))){
+                FilterFc.setDisable(true);
+                FilterQ.setDisable(true);
+                FilterPuntos.setDisable(false);
+                FilterSigma.setDisable(true);
+            } else if(newValue != null && newValue.startsWith("Filtro Hampel")){
+                FilterFc.setDisable(true);
+                FilterQ.setDisable(true);
+                FilterPuntos.setDisable(false);
+                FilterSigma.setDisable(false);
+            } else if(newValue != null && newValue.startsWith("Filtro Bilateral")){
+                FilterFc.setDisable(true);
+                FilterQ.setDisable(true);
+                FilterPuntos.setDisable(false);
+                FilterSigma.setDisable(false);
+            } else {
+                FilterFc.setDisable(false);
+                FilterQ.setDisable(true);
+                FilterPuntos.setDisable(true);
             }
         });
     }
@@ -171,14 +223,16 @@ public class MainViewController implements Initializable {
         senalSalidaFFT = senalSalida.calcularFFT();
         respuestaFiltro = filtroActual.obtenerRespuestaFrecuencia(N, fs);
         // Escalar H(w) al pico de la FFT de entrada para comparar en el mismo gráfico
-        respuestaFiltro = respuestaFiltro.multiplicarPorEscalar(senalEntradaFFT.obtenerAmplitudMaxima());
+        double multiplicador = senalEntradaFFT.obtenerAmplitudMaxima();
+        if (multiplicador==0.0) multiplicador = 1;
+        respuestaFiltro = respuestaFiltro.multiplicarPorEscalar(multiplicador);
 
         // Actualizar series (sin recrear los LineChart)
-        Graficador.actualizarSerie(chartEntrada.getData().get(0), entradaConRuido, paso, factorRecorte, false);
-        Graficador.actualizarSerie(chartFFTEntrada.getData().get(0), senalEntradaFFT, pasoFft, factorRecorteFFT, true);
-        Graficador.actualizarSerie(serieRespuestaFiltro, respuestaFiltro, pasoRespuestaFiltro, factorRecorteFFT, true);
-        Graficador.actualizarSerie(chartSalida.getData().get(0), senalSalida, paso, factorRecorte, false);
-        Graficador.actualizarSerie(chartFFTSalida.getData().get(0), senalSalidaFFT, pasoFft, factorRecorteFFT, true);
+        Graficador.actualizarSerie(chartEntrada.getData().get(0), entradaConRuido, paso, false, tiempoInicio, tiempoFin);
+        Graficador.actualizarSerie(chartFFTEntrada.getData().get(0), senalEntradaFFT, pasoFft, true, freqInicio, freqFin);
+        Graficador.actualizarSerie(serieRespuestaFiltro, respuestaFiltro, pasoRespuestaFiltro, false, freqInicio, freqFin);
+        Graficador.actualizarSerie(chartSalida.getData().get(0), senalSalida, paso, false, tiempoInicio, tiempoFin);
+        Graficador.actualizarSerie(chartFFTSalida.getData().get(0), senalSalidaFFT, pasoFft, true, freqInicio, freqFin);
     }
     
     // --- Handlers FXML: señal de entrada ---
@@ -204,11 +258,20 @@ public class MainViewController implements Initializable {
         double freqEntradaDouble = Double.parseDouble(freqEntrada);
         double ampEntradaDouble = Double.parseDouble(ampEntrada);
         
-        if (seleccionSenalEntrada.equals("Senoidal")) {
+        if (seleccionSenalEntrada.equals("Señal Continua")) {
+            senalEntrada = Signal.crearContinua(ampEntradaDouble, fs, N);
+        }
+        if (seleccionSenalEntrada.equals("Señal Senoidal")) {
             senalEntrada = Signal.crearSenoidal(ampEntradaDouble, freqEntradaDouble, fs, N);
         }
-        if (seleccionSenalEntrada.equals("Cuadrada")) {
+        if (seleccionSenalEntrada.equals("Señal Cuadrada")) {
             senalEntrada = Signal.crearCuadrada(ampEntradaDouble, freqEntradaDouble, fs, N);
+        }
+        if (seleccionSenalEntrada.equals("Señal Triangular")) {
+            senalEntrada = Signal.crearTriangular(ampEntradaDouble, freqEntradaDouble, fs, N);
+        }
+        if (seleccionSenalEntrada.equals("Señal Diente de Sierra")) {
+            senalEntrada = Signal.crearDienteDeSierra(ampEntradaDouble, freqEntradaDouble, fs, N);
         }
 
         actualizarGraficas();
@@ -217,7 +280,7 @@ public class MainViewController implements Initializable {
     
     @FXML
     private void SignalDeleteOnAction(ActionEvent event) { 
-        senalEntrada = Signal.crearSenoidal(0, 0, fs, N);
+        senalEntrada = Signal.crearContinua( 0, fs, N);
         
         SignalFreq.setText("0");
         SignalAmp.setText("0");
@@ -236,27 +299,47 @@ public class MainViewController implements Initializable {
         String seleccionFiltro = FilterSelector.getValue();
         String filterFc = FilterFc.getText();
         String filterQ = FilterQ.getText();
+        String filterPuntos = FilterPuntos.getText();
+        String filterSigma = FilterSigma.getText();
         
         // Expresión regular para números decimales positivos (ej: 10, 3.14, 0.5)
         String regexDecimalPositivo = "^[0-9]+(\\.[0-9]+)?$";
 
         // Verificar que ambos inputs cumplan con el formato decimal positivo
-        if (!filterFc.matches(regexDecimalPositivo) || !filterQ.matches(regexDecimalPositivo)) {
+        if (!filterFc.matches(regexDecimalPositivo) || !filterQ.matches(regexDecimalPositivo)
+            || !filterSigma.matches(regexDecimalPositivo) ) {
             FilterFc.setText("ERROR");
             FilterQ.setText("ERROR");
+            FilterSigma.setText("ERROR");
+            return;
+        }
+        
+        // Expresión regular para números enteros positivos (ej: 10, 42, 0)
+        String regexEnteroPositivo = "^[0-9]+$";
+
+        // Verificar que "Puntos" cumpla con el formato entero positivo
+        if (!filterPuntos.matches(regexEnteroPositivo)) {
+            FilterPuntos.setText("ERROR");
             return;
         }
         
         // Convertir las entradas a double
         double filterFcDouble = Double.parseDouble(filterFc);
         double filterQDouble = Double.parseDouble(filterQ);
+        double filterSigmaDouble = Double.parseDouble(filterSigma);
         
+        // Convertir las entradas a int
+        int filterPuntosInt = Integer.parseInt(filterPuntos);
+        
+        // Primer Orden
         if (seleccionFiltro.equals("Pasa Bajos 1er Orden")) {
             filtroActual = GeneradorFiltros.crearPasaBajos(filterFcDouble, fs);
         }
         if (seleccionFiltro.equals("Pasa Altos 1er Orden")) {
             filtroActual = GeneradorFiltros.crearPasaAltos(filterFcDouble, fs);
         }
+        
+        // Segundo Orden
         if (seleccionFiltro.equals("Pasa Bajos 2do Orden")) {
             filtroActual = GeneradorFiltros.crearPasaBajos2doOrden(filterFcDouble, fs);
         }
@@ -265,6 +348,40 @@ public class MainViewController implements Initializable {
         }
         if (seleccionFiltro.equals("Pasa Banda 2do Orden")) {
             filtroActual = GeneradorFiltros.crearPasaBanda(filterFcDouble, filterQDouble, fs);
+        }
+        if (seleccionFiltro.equals("Rechaza Banda 2do Orden")) {
+            filtroActual = GeneradorFiltros.crearRechazaBanda(filterFcDouble, filterQDouble, fs);
+        }
+        
+        // Filtros en tiempo
+        if (seleccionFiltro.equals("Filtro Mediana")) {
+            filtroActual = GeneradorFiltros.crearFiltroMediana(filterPuntosInt);
+        }
+        if (seleccionFiltro.equals("Filtro Hampel (Mediana Mejorado)")) {
+            filtroActual = GeneradorFiltros.crearFiltroHampel(filterPuntosInt, filterSigmaDouble);
+        }
+        if (seleccionFiltro.equals("Filtro Media Movil")) {
+            filtroActual = GeneradorFiltros.crearMediaMovil(filterPuntosInt);
+        }
+        if (seleccionFiltro.equals("Filtro Bilateral")) {
+            filtroActual = GeneradorFiltros.crearFiltroBilateral(filterPuntosInt, filterSigmaDouble);
+        }
+        
+        // Filtros Savitzky-Golay
+        if (seleccionFiltro.equals("Filtro Savitzky-Golay 5 Puntos")) {
+            filtroActual = GeneradorFiltros.crearSavitzkyGolay5Puntos();
+        }
+        if (seleccionFiltro.equals("Filtro Savitzky-Golay 7 Puntos")) {
+            filtroActual = GeneradorFiltros.crearSavitzkyGolay7Puntos();
+        }
+        if (seleccionFiltro.equals("Filtro Savitzky-Golay 11 Puntos")) {
+            filtroActual = GeneradorFiltros.crearSavitzkyGolay11Puntos();
+        }
+        if (seleccionFiltro.equals("Filtro Savitzky-Golay 15 Puntos")) {
+            filtroActual = GeneradorFiltros.crearSavitzkyGolay15Puntos();
+        }
+        if (seleccionFiltro.equals("Filtro Savitzky-Golay 21 Puntos")) {
+            filtroActual = GeneradorFiltros.crearSavitzkyGolay21Puntos();
         }
 
         actualizarGraficas();

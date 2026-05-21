@@ -16,7 +16,7 @@
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
 
-<AnchorPane id="AnchorPane" prefHeight="577.0" prefWidth="742.0" styleClass="mainFxmlClass" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.mycompany.signals.UI.controllers.MainViewController">
+<AnchorPane id="AnchorPane" prefHeight="577.0" prefWidth="742.0" styleClass="mainFxmlClass" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.mycompany.signals.UI.controllers.MainViewController">
     <stylesheets>
         <URL value="@/ui/styles/mainview.css" />
     </stylesheets>
@@ -103,8 +103,12 @@
                                           <ChoiceBox fx:id="FilterSelector" prefWidth="200.0" />
                                           <Label text="Frecuencia de Corte / Central" />
                                           <TextField fx:id="FilterFc" />
-                                          <Label text="Q (Para paso Banda)" />
+                                          <Label text="Q (Para Paso/Rechaza Banda)" />
                                           <TextField fx:id="FilterQ" />
+                                          <Label text="Puntos (Media/Mediana)" />
+                                          <TextField fx:id="FilterPuntos" />
+                                          <Label text="Sigma Limite (Hampel/Bilateral)" />
+                                          <TextField fx:id="FilterSigma" />
                                           <Button fx:id="FilterApply" mnemonicParsing="false" onAction="#FilterApplyOnAction" prefWidth="200.0" text="Aplicar Filtro">
                                              <VBox.margin>
                                                 <Insets top="10.0" />

@@ -1,9 +1,10 @@
 package com.mycompany.signals.UI;
 
+import com.mycompany.signals.model.Signal;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
-import com.mycompany.signals.model.Signal;
+
 
 /**
  * Construye y actualiza gráficos LineChart de JavaFX para señales en tiempo y FFT.
@@ -19,7 +20,26 @@ public class GeneradorGraficasFX {
     /** Datos intermedios tras umbral y submuestreo FFT, listos para el reductor. */
     private record DatosFftGrafico(double[] x, double[] y, int limite, double amplitudMax) {
     }
+    
+    private int buscarIndice(double[] x, double valor, boolean esInicio) {
+        int izquierda = 0;
+        int derecha = x.length - 1;
+        int resultado = esInicio ? 0 : x.length - 1;
 
+        while (izquierda <= derecha) {
+            int medio = izquierda + (derecha - izquierda) / 2;
+            if (x[medio] == valor) return medio;
+            else if (x[medio] < valor) {
+                izquierda = medio + 1;
+                if (!esInicio) resultado = medio;
+            } else {
+                derecha = medio - 1;
+                if (esInicio) resultado = medio;
+            }
+        }
+        return Math.max(0, Math.min(x.length - 1, resultado));
+    }
+    
     /**
      * Crea un LineChart vacío listo para actualizaciones sucesivas.
      * @param titulo Título del gráfico.
@@ -60,51 +80,56 @@ public class GeneradorGraficasFX {
      * @param factorRecorte divide la longitud visible (ej. 70 → primeros N/70 puntos en tiempo)
      * @param omitirRepetidos si es true (FFT): umbral → submuestreo → reductor de cadenas
      */
-    public void actualizarSerie(XYChart.Series<Number, Number> serie, Signal signal, int paso, int factorRecorte, boolean omitirRepetidos) {
-        actualizarSerie(serie, signal.getT(), signal.getFt(), paso, factorRecorte, omitirRepetidos);
+    public void actualizarSerie(XYChart.Series<Number, Number> serie, Signal signal, int paso, boolean omitirRepetidos, double minX, double maxX) {
+        actualizarSerie(serie, signal.getT(), signal.getFt(), paso, omitirRepetidos, minX, maxX);
     }
 
     /**
      * @see #actualizarSerie(XYChart.Series, Signal, int, int, boolean)
      */
-    public void actualizarSerie(XYChart.Series<Number, Number> serie, double[] x, double[] y, int paso, int factorRecorte, boolean omitirRepetidos) {
+    public void actualizarSerie(XYChart.Series<Number, Number> serie, double[] x, double[] y, int paso, boolean omitirRepetidos, double minX, double maxX) {
         serie.getData().clear();
-        if (x == null || y == null || x.length == 0) {
-            return;
-        }
+        if (x == null || y == null || x.length == 0) return;
 
         paso = Math.max(1, paso);
-        factorRecorte = Math.max(1, factorRecorte);
-        int longitud = Math.min(x.length, y.length);
-        int limite = longitud / factorRecorte;
+
+        // Buscar índices en lugar de usar factor de recorte
+        int idxInicio = buscarIndice(x, minX, true);
+        int idxFin = buscarIndice(x, maxX, false);
+
+        if (idxInicio >= idxFin) return; // Protección para valores invalidos
 
         if (omitirRepetidos) {
-            DatosFftGrafico datos = prepararDatosFft(x, y, limite, paso);
+            DatosFftGrafico datos = prepararDatosFft(x, y, idxInicio, idxFin, paso);
             graficarConReductorCadenas(serie, datos);
         } else {
-            graficarConMuestreo(serie, x, y, limite, paso);
+            graficarConMuestreo(serie, x, y, idxInicio, idxFin, paso);
         }
     }
 
     /**
-     * Pipeline FFT: 1) umbral de magnitud → 2) submuestreo por ventanas → devuelve datos listos.
+     * FFT: 1) umbral de magnitud → 2) submuestreo por ventanas → devuelve datos listos.
      */
-    private DatosFftGrafico prepararDatosFft(double[] x, double[] y, int limite, int paso) {
+    private DatosFftGrafico prepararDatosFft(double[] x, double[] y, int idxInicio, int idxFin, int paso) {
         double amplitudMax = 0;
-        double[] magnitudes = new double[limite];
+        int longitud = idxFin - idxInicio + 1;
+        
+        double[] xRecortado = new double[longitud];
+        double[] magnitudes = new double[longitud];
 
-        for (int i = 0; i < limite; i++) {
+        for (int i = idxInicio; i <= idxFin; i++) {
             amplitudMax = Math.max(amplitudMax, Math.abs(y[i]));
         }
         double umbral = umbralDesdeMax(amplitudMax);
 
-        // 1. Poner a cero lo que queda por debajo del umbral respecto al máximo
-        for (int i = 0; i < limite; i++) {
-            magnitudes[i] = (amplitudMax > 0 && Math.abs(y[i]) < umbral) ? 0.0 : y[i];
+        int j = 0;
+        for (int i = idxInicio; i <= idxFin; i++) {
+            xRecortado[j] = x[i];
+            magnitudes[j] = (amplitudMax > 0 && Math.abs(y[i]) < umbral) ? 0.0 : y[i];
+            j++;
         }
 
-        // 2. Submuestrear por ventanas (conserva el pico de cada bloque)
-        return submuestrearPorVentana(x, magnitudes, limite, paso, amplitudMax);
+        return submuestrearPorVentana(xRecortado, magnitudes, longitud, paso, amplitudMax);
     }
 
     /**
@@ -169,9 +194,9 @@ public class GeneradorGraficasFX {
      * Extrae el mínimo, el máximo, el valor medio, y si la señal cruza el eje X,
      * calcula el instante exacto del cruce mediante interpolación lineal.
      */
-    private void graficarConMuestreo(XYChart.Series<Number, Number> serie, double[] x, double[] y, int limite, int paso) {
+    private void graficarConMuestreo(XYChart.Series<Number, Number> serie, double[] x, double[] y, int idxInicio, int idxFin, int paso) {
         if (paso <= 1) {
-            for (int i = 0; i < limite; i++) {
+            for (int i = idxInicio; i <= idxFin; i++) {
                 serie.getData().add(new XYChart.Data<>(x[i], y[i]));
             }
             return;
@@ -179,8 +204,8 @@ public class GeneradorGraficasFX {
 
         double ultimoX = -Double.MAX_VALUE; // Para evitar puntos duplicados globales
 
-        for (int inicio = 0; inicio < limite; inicio += paso) {
-            int fin = Math.min(inicio + paso, limite);
+        for (int inicio = idxInicio; inicio < idxFin; inicio += paso) {
+            int fin = Math.min(inicio + paso, idxFin);
             
             // 1. Encontrar mínimo y máximo
             int idxMin = inicio;
@@ -220,7 +245,7 @@ public class GeneradorGraficasFX {
             if (minY < 0 && maxY > 0) {
                 for (int i = inicio; i < fin - 1; i++) {
                     // Detectar dónde ocurre exactamente el cambio de signo
-                    if ((y[i] < 0 && y[i + 1] > 0) || (y[i] > 0 && y[i + 1] < 0)) {
+                    if ((y[i] <= 0 && y[i + 1] > 0) || (y[i] >= 0 && y[i + 1] < 0)) {
                         double x1 = x[i];   double y1 = y[i];
                         double x2 = x[i+1]; double y2 = y[i+1];
                         
@@ -254,5 +279,7 @@ public class GeneradorGraficasFX {
             }
         }
     }
+    
+    
 
 }

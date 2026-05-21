@@ -81,6 +81,39 @@ public class Signal {
         }
         return new Signal(t, ft);
     }
+    
+    /**
+     * Genera una onda diente de sierra.
+     */
+    public static Signal crearDienteDeSierra(double amplitud, double frecuenciaHz, double fs, int N) {
+        double[] t = new double[N];
+        double[] ft = new double[N];
+        double dt = 1.0 / fs;
+
+        for (int i = 0; i < N; i++) {
+            t[i] = i * dt;
+            // Calculamos la fase y extraemos la parte fraccionaria para generar la rampa
+            double fase = t[i] * frecuenciaHz;
+            ft[i] = amplitud * 2.0 * (fase - Math.floor(fase + 0.5));
+        }
+        return new Signal(t, ft);
+    }
+    
+    /**
+     * Genera una onda triangular.
+     */
+    public static Signal crearTriangular(double amplitud, double frecuenciaHz, double fs, int N) {
+        double[] t = new double[N];
+        double[] ft = new double[N];
+        double dt = 1.0 / fs;
+
+        for (int i = 0; i < N; i++) {
+            t[i] = i * dt;
+            // Una forma elegante e ininterrumpida de hacerla es usando el arcoseno del seno
+            ft[i] = amplitud * (2.0 / Math.PI) * Math.asin(Math.sin(2.0 * Math.PI * frecuenciaHz * t[i]));
+        }
+        return new Signal(t, ft);
+    }
 
     /**
      * Genera una señal de corriente continua (DC).
